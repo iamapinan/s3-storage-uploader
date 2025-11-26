@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     },
     connection: {
       success: false,
-      error: null,
+      error: null as string | null,
       bucketExists: false,
       bucketAccessible: false,
     },
