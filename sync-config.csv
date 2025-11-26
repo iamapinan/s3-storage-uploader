@@ -1,0 +1,13 @@
+# MinIO to R2 Sync Configuration
+# Format: source_bucket,destination_bucket
+# Lines starting with # are comments
+# Empty lines are ignored
+
+# Example configurations:
+# my-minio-bucket,my-r2-bucket
+# images,cdn-images
+# documents,backup-docs
+# uploads,public-uploads
+
+# Add your bucket mappings below:
+# source_bucket,destination_bucket 

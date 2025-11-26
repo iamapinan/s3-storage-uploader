@@ -1,0 +1,13 @@
+Use this token for authenticating against the Cloudflare API
+Token value
+IZw1ezkfNXpl2ZwPcNJV3kt61ktx8Z5GwEiUZN85
+
+Use the following credentials for S3 clients:
+Access Key ID
+87c6e3787729d7456e0568b6825f669b
+
+Secret Access Key
+c0df1bf6bfefba21dd52f9afc5264894186ab054e34eca69e5dae65fac332db0
+
+Use jurisdiction-specific endpoints for S3 clients:
+https://179644dc24aa93a7a89cb338e6f72cd6.r2.cloudflarestorage.com

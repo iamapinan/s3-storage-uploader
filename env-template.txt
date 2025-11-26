@@ -1,0 +1,26 @@
+# MinIO to R2 Sync Environment Configuration
+
+# MinIO Configuration
+MINIO_ENDPOINT=https://cdns.yellow-idea.com
+MINIO_ACCESS_KEY=nNpUordh7KlaW0WTivLW
+MINIO_SECRET_KEY=32rxVkA5H7fr1AZ6JzJxDqgxFhp875qyuPPxILXJ
+MINIO_REGION=bkk-01
+
+# Cloudflare R2 Configuration
+R2_ACCESS_KEY_ID=87c6e3787729d7456e0568b6825f669b
+R2_SECRET_ACCESS_KEY=c0df1bf6bfefba21dd52f9afc5264894186ab054e34eca69e5dae65fac332db0
+R2_ENDPOINT=https://179644dc24aa93a7a89cb338e6f72cd6.r2.cloudflarestorage.com
+R2_REGION=auto
+
+# Sync Configuration
+DEFAULT_SOURCE_ENDPOINT=https://cdns.yellow-idea.com
+DEFAULT_DEST_BUCKET=your_r2_bucket_name
+
+# Logging Configuration
+LOG_LEVEL=INFO
+LOG_FILE=sync.log
+
+# Performance Configuration
+BATCH_SIZE=100
+MAX_CONCURRENT_SYNC=3
+SYNC_DELAY=2 
