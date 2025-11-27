@@ -13,23 +13,31 @@ import { Cloud, Upload, Folder, LogOut } from 'lucide-react';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'upload' | 'files'>('upload');
-  const { isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isLoading, router]);
 
   const handleUploadSuccess = () => {
     // setActiveTab('files'); // Keep user on upload tab to see the URL
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push('/login');
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-600">กำลังตรวจสอบ...</div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return null; // Show nothing while redirecting

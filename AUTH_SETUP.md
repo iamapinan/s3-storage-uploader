@@ -1,20 +1,42 @@
-# Authentication Setup
+# Authentication Environment Variables Setup
 
-## Environment Variables
+## Required Environment Variables
+
 Add the following to your `.env.local` file:
 
 ```bash
-NEXT_PUBLIC_AUTH_USER=admin
-NEXT_PUBLIC_AUTH_PASS=your_secure_password
+# Authentication credentials (server-side only)
+AUTH_USER=admin
+AUTH_PASS=securepassword
+
+# Session secret for JWT signing
+SESSION_SECRET=your-random-secret-key-here-change-this-in-production
 ```
 
-Replace `your_secure_password` with your desired password.
+## Important Notes
 
-## Usage
-1. Navigate to the app - you'll be redirected to `/login`
-2. Enter the username and password from your environment variables
-3. After successful login, you'll access the dashboard
-4. Click "ออกจากระบบ" (Logout) in the header to log out
+1. **AUTH_USER** and **AUTH_PASS**: These are server-side only variables and will NOT be exposed to the client
+2. **SESSION_SECRET**: Used to sign JWT tokens. Generate a random string for production use
+3. Remove the old `NEXT_PUBLIC_AUTH_USER` and `NEXT_PUBLIC_AUTH_PASS` variables as they are no longer needed
 
-## Security Note
-This implementation uses client-side authentication with credentials stored in `NEXT_PUBLIC_*` environment variables. This is suitable for simple access control but NOT for production security. For production use, implement server-side authentication with proper session management.
+## Generating a Secure Session Secret
+
+You can generate a secure random secret using:
+
+```bash
+# Using Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Or using OpenSSL
+openssl rand -hex 32
+```
+
+## Migration from Old Auth System
+
+If you're upgrading from the previous client-side auth system:
+
+1. Remove `NEXT_PUBLIC_AUTH_USER` and `NEXT_PUBLIC_AUTH_PASS` from your `.env.local`
+2. Add `AUTH_USER`, `AUTH_PASS`, and `SESSION_SECRET` as shown above
+3. Restart your development server
+
+The authentication now happens securely on the server side with session management.
