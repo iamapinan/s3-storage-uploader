@@ -1,8 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // experimental: {
-  //   appDir: true,
-  // },
-}
+  env: {
+    NEXT_PUBLIC_AUTH_USER: process.env.NEXT_PUBLIC_AUTH_USER,
+    NEXT_PUBLIC_AUTH_PASS: process.env.NEXT_PUBLIC_AUTH_PASS,
+  },
+};
 
-module.exports = nextConfig 
+module.exports = nextConfig;

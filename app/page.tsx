@@ -1,20 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/app/context/AuthContext';
 import FileUpload from '@/components/FileUpload';
 import FileList from '@/components/FileList';
 // import StorageConfig from '@/components/StorageConfig';
 // import DiagnosticPanel from '@/components/DiagnosticPanel';
 // import MinioTest from '@/components/MinioTest';
 // import MinioSetupGuide from '@/components/MinioSetupGuide';
-import { Cloud, Upload, Folder } from 'lucide-react';
+import { Cloud, Upload, Folder, LogOut } from 'lucide-react';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'upload' | 'files'>('upload');
+  const { isAuthenticated, logout } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.push('/login');
+    }
+  }, [isAuthenticated, router]);
 
   const handleUploadSuccess = () => {
     // setActiveTab('files'); // Keep user on upload tab to see the URL
   };
+
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
+  };
+
+  if (!isAuthenticated) {
+    return null; // Show nothing while redirecting
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -26,8 +45,17 @@ export default function Home() {
               <Cloud className="h-8 w-8 text-blue-600 mr-3" />
               <h1 className="text-2xl font-bold text-gray-900">ระบบจัดการไฟล์ S3</h1>
             </div>
-            <div className="text-sm text-gray-500">
-              พื้นที่จัดเก็บไฟล์บนคลาวด์ที่ปลอดภัย
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-500">
+                พื้นที่จัดเก็บไฟล์บนคลาวด์ที่ปลอดภัย
+              </div>
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition duration-200"
+              >
+                <LogOut className="h-4 w-4" />
+                ออกจากระบบ
+              </button>
             </div>
           </div>
         </div>

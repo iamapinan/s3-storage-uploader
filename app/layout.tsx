@@ -10,6 +10,8 @@ export const metadata: Metadata = {
   description: 'A web application for managing files in S3-compatible storage',
 }
 
+import { AuthProvider } from '@/app/context/AuthContext';
+
 export default function RootLayout({
   children,
 }: {
@@ -18,12 +20,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <ErrorBoundary>
-          <div className="min-h-screen bg-gray-50">
-            {children}
-          </div>
-        </ErrorBoundary>
+        <AuthProvider>
+          <ErrorBoundary>
+            <div className="min-h-screen bg-gray-50">
+              {children}
+            </div>
+          </ErrorBoundary>
+        </AuthProvider>
       </body>
     </html>
   )
-} 
+}
