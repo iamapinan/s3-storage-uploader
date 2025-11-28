@@ -48,46 +48,62 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        
-        // Step 1: Get presigned URL from API
-        const urlResponse = await fetch('/api/get-upload-url', {
+        const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+        // 1. Initiate Multipart Upload
+        const initResponse = await fetch('/api/upload/initiate', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            fileName: file.name,
-            fileType: file.type,
-            fileSize: file.size,
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: file.name, contentType: file.type }),
         });
 
-        if (!urlResponse.ok) {
-          const errorData = await urlResponse.json();
-          throw new Error(errorData.error || `Failed to get upload URL for ${file.name}`);
+        if (!initResponse.ok) throw new Error('Failed to initiate upload');
+        const { uploadId, key } = await initResponse.json();
+
+        // 2. Upload Parts
+        for (let partNumber = 1; partNumber <= totalChunks; partNumber++) {
+          const start = (partNumber - 1) * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunk = file.slice(start, end);
+
+          // Get presigned URL for this part
+          const partResponse = await fetch('/api/upload/part', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uploadId, key, partNumber }),
+          });
+
+          if (!partResponse.ok) throw new Error(`Failed to get upload url for part ${partNumber}`);
+          const { url } = await partResponse.json();
+
+          // Upload chunk directly to S3
+          const uploadResponse = await fetch(url, {
+            method: 'PUT',
+            body: chunk,
+          });
+
+          if (!uploadResponse.ok) throw new Error(`Failed to upload part ${partNumber}`);
+          
+          // Update progress
+          const fileProgress = (partNumber / totalChunks) * 100;
+          const totalProgress = ((i + (partNumber / totalChunks)) / files.length) * 100;
+          setUploadProgress(totalProgress);
         }
 
-        const { presignedUrl, publicUrl } = await urlResponse.json();
-
-        // Step 2: Upload file directly to S3 using presigned URL
-        const uploadResponse = await fetch(presignedUrl, {
-          method: 'PUT',
-          body: file,
-          headers: {
-            'Content-Type': file.type,
-          },
+        // 3. Complete Multipart Upload
+        const completeResponse = await fetch('/api/upload/complete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uploadId, key }),
         });
 
-        if (!uploadResponse.ok) {
-          throw new Error(`Failed to upload ${file.name} to storage`);
-        }
+        if (!completeResponse.ok) throw new Error('Failed to complete upload');
+        const data = await completeResponse.json();
 
-        // Step 3: Store the public URL
-        if (publicUrl) {
-          setUploadedFiles(prev => [...prev, { name: file.name, url: publicUrl }]);
+        if (data.location) {
+          setUploadedFiles(prev => [...prev, { name: file.name, url: data.location }]);
         }
-
-        setUploadProgress(((i + 1) / files.length) * 100);
       }
 
       onUploadSuccess();
@@ -194,7 +210,7 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
                     type="text"
                     readOnly
                     value={file.url}
-                    className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md border-gray-300 text-sm border focus:ring-blue-500 focus:border-blue-500"
+                    className="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md border-gray-300 text-sm text-gray-900 border focus:ring-blue-500 focus:border-blue-500"
                     onClick={(e) => (e.target as HTMLInputElement).select()}
                   />
                   <button

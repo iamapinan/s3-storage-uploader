@@ -1,4 +1,16 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { 
+  S3Client, 
+  PutObjectCommand, 
+  GetObjectCommand, 
+  DeleteObjectCommand, 
+  ListObjectsV2Command,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand,
+  ListPartsCommand,
+  CompletedPart
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { createMinioClient } from './minio-client';
 
@@ -53,54 +65,6 @@ export interface DownloadResponse {
   success: boolean;
   url?: string;
   error?: string;
-}
-
-export interface PresignedUploadResponse {
-  success: boolean;
-  presignedUrl?: string;
-  publicUrl?: string;
-  key?: string;
-  error?: string;
-}
-
-// Get presigned URL for direct upload
-export async function getPresignedUploadUrl(fileName: string, fileType: string, key: string): Promise<PresignedUploadResponse> {
-  try {
-    const command = new PutObjectCommand({
-      Bucket: bucketName,
-      Key: key,
-      ContentType: fileType,
-      ACL: 'public-read',
-    });
-
-    // Generate presigned URL with 5 minute expiration
-    const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
-
-    // Construct public URL
-    let publicUrl = '';
-    if (process.env.MINIO_ENDPOINT) {
-      const protocol = process.env.MINIO_USE_SSL === 'true' ? 'https' : 'http';
-      const endpoint = process.env.MINIO_ENDPOINT.replace(/\/$/, '');
-      publicUrl = `${protocol}://${endpoint}/${bucketName}/${key}`;
-    } else if (process.env.SPACES_ENDPOINT) {
-      const endpoint = process.env.SPACES_ENDPOINT.replace(/\/$/, '').replace('https://', '');
-      publicUrl = `https://${bucketName}.${endpoint}/${key}`;
-    } else if (process.env.CLOUDFLARE_PUBLIC_URL) {
-      const publicEndpoint = process.env.CLOUDFLARE_PUBLIC_URL.replace(/\/$/, '');
-      publicUrl = `${publicEndpoint}/${key}`;
-    } else {
-      const region = process.env.AWS_REGION || 'us-east-1';
-      publicUrl = `https://${bucketName}.s3.${region}.amazonaws.com/${key}`;
-    }
-
-    return { success: true, presignedUrl, publicUrl, key };
-  } catch (error) {
-    console.error('Presigned URL error:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to generate presigned URL' 
-    };
-  }
 }
 
 // Upload file to S3
@@ -225,5 +189,118 @@ export async function listFiles(prefix?: string): Promise<{ success: boolean; fi
   } catch (error) {
     console.error('List files error:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Failed to list files' };
+  }
+}
+
+// Initiate Multipart Upload
+export async function createMultipartUpload(key: string, contentType: string): Promise<{ success: boolean; uploadId?: string; error?: string }> {
+  try {
+    const command = new CreateMultipartUploadCommand({
+      Bucket: bucketName,
+      Key: key,
+      ContentType: contentType,
+      ACL: 'public-read',
+    });
+
+    const response = await s3Client.send(command);
+    return { success: true, uploadId: response.UploadId };
+  } catch (error) {
+    console.error('Create multipart upload error:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to initiate upload' };
+  }
+}
+
+// Get Presigned URL for Upload Part
+export async function getUploadPartUrl(key: string, uploadId: string, partNumber: number): Promise<{ success: boolean; url?: string; error?: string }> {
+  try {
+    const command = new UploadPartCommand({
+      Bucket: bucketName,
+      Key: key,
+      UploadId: uploadId,
+      PartNumber: partNumber,
+    });
+
+    const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+    return { success: true, url };
+  } catch (error) {
+    console.error('Get upload part URL error:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get part URL' };
+  }
+}
+
+// Complete Multipart Upload
+export async function completeMultipartUpload(key: string, uploadId: string, parts?: CompletedPart[]): Promise<{ success: boolean; location?: string; error?: string }> {
+  try {
+    // Fetch uploaded parts from S3 to ensure we have valid ETags and PartNumbers
+    // This avoids issues where the client might send invalid/missing ETags (e.g. due to CORS)
+    const listPartsCommand = new ListPartsCommand({
+      Bucket: bucketName,
+      Key: key,
+      UploadId: uploadId,
+    });
+
+    const { Parts } = await s3Client.send(listPartsCommand);
+
+    if (!Parts || Parts.length === 0) {
+      return { success: false, error: 'No parts found for this upload' };
+    }
+
+    // Construct CompletedPart array from S3 response
+    const completedParts: CompletedPart[] = Parts.map(part => ({
+      ETag: part.ETag,
+      PartNumber: part.PartNumber,
+    }));
+
+    const command = new CompleteMultipartUploadCommand({
+      Bucket: bucketName,
+      Key: key,
+      UploadId: uploadId,
+      MultipartUpload: {
+        Parts: completedParts,
+      },
+    });
+
+    const response = await s3Client.send(command);
+    
+    // Construct public URL (reuse logic from uploadFile if possible, or just use Location)
+    let publicUrl = response.Location;
+    
+    // Re-construct public URL to ensure consistency with uploadFile logic
+    if (process.env.MINIO_ENDPOINT) {
+      const protocol = process.env.MINIO_USE_SSL === 'true' ? 'https' : 'http';
+      const endpoint = process.env.MINIO_ENDPOINT.replace(/\/$/, '');
+      publicUrl = `${protocol}://${endpoint}/${bucketName}/${key}`;
+    } else if (process.env.SPACES_ENDPOINT) {
+       const endpoint = process.env.SPACES_ENDPOINT.replace(/\/$/, '').replace('https://', '');
+       publicUrl = `https://${bucketName}.${endpoint}/${key}`;
+    } else if (process.env.CLOUDFLARE_PUBLIC_URL) {
+      const publicEndpoint = process.env.CLOUDFLARE_PUBLIC_URL.replace(/\/$/, '');
+      publicUrl = `${publicEndpoint}/${key}`;
+    } else if (!publicUrl) {
+       const region = process.env.AWS_REGION || 'us-east-1';
+       publicUrl = `https://${bucketName}.s3.${region}.amazonaws.com/${key}`;
+    }
+
+    return { success: true, location: publicUrl };
+  } catch (error) {
+    console.error('Complete multipart upload error:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to complete upload' };
+  }
+}
+
+// Abort Multipart Upload
+export async function abortMultipartUpload(key: string, uploadId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const command = new AbortMultipartUploadCommand({
+      Bucket: bucketName,
+      Key: key,
+      UploadId: uploadId,
+    });
+
+    await s3Client.send(command);
+    return { success: true };
+  } catch (error) {
+    console.error('Abort multipart upload error:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to abort upload' };
   }
 } 
