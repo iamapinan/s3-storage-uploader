@@ -48,21 +48,43 @@ export default function FileUpload({ onUploadSuccess }: FileUploadProps) {
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const response = await fetch('/api/upload', {
+        
+        // Step 1: Get presigned URL from API
+        const urlResponse = await fetch('/api/get-upload-url', {
           method: 'POST',
-          body: formData,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+          }),
         });
 
-        if (!response.ok) {
-          throw new Error(`Failed to upload ${file.name}`);
+        if (!urlResponse.ok) {
+          const errorData = await urlResponse.json();
+          throw new Error(errorData.error || `Failed to get upload URL for ${file.name}`);
         }
 
-        const data = await response.json();
-        if (data.publicUrl) {
-          setUploadedFiles(prev => [...prev, { name: file.name, url: data.publicUrl }]);
+        const { presignedUrl, publicUrl } = await urlResponse.json();
+
+        // Step 2: Upload file directly to S3 using presigned URL
+        const uploadResponse = await fetch(presignedUrl, {
+          method: 'PUT',
+          body: file,
+          headers: {
+            'Content-Type': file.type,
+          },
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Failed to upload ${file.name} to storage`);
+        }
+
+        // Step 3: Store the public URL
+        if (publicUrl) {
+          setUploadedFiles(prev => [...prev, { name: file.name, url: publicUrl }]);
         }
 
         setUploadProgress(((i + 1) / files.length) * 100);

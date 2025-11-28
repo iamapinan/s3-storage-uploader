@@ -55,6 +55,54 @@ export interface DownloadResponse {
   error?: string;
 }
 
+export interface PresignedUploadResponse {
+  success: boolean;
+  presignedUrl?: string;
+  publicUrl?: string;
+  key?: string;
+  error?: string;
+}
+
+// Get presigned URL for direct upload
+export async function getPresignedUploadUrl(fileName: string, fileType: string, key: string): Promise<PresignedUploadResponse> {
+  try {
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      ContentType: fileType,
+      ACL: 'public-read',
+    });
+
+    // Generate presigned URL with 5 minute expiration
+    const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
+
+    // Construct public URL
+    let publicUrl = '';
+    if (process.env.MINIO_ENDPOINT) {
+      const protocol = process.env.MINIO_USE_SSL === 'true' ? 'https' : 'http';
+      const endpoint = process.env.MINIO_ENDPOINT.replace(/\/$/, '');
+      publicUrl = `${protocol}://${endpoint}/${bucketName}/${key}`;
+    } else if (process.env.SPACES_ENDPOINT) {
+      const endpoint = process.env.SPACES_ENDPOINT.replace(/\/$/, '').replace('https://', '');
+      publicUrl = `https://${bucketName}.${endpoint}/${key}`;
+    } else if (process.env.CLOUDFLARE_PUBLIC_URL) {
+      const publicEndpoint = process.env.CLOUDFLARE_PUBLIC_URL.replace(/\/$/, '');
+      publicUrl = `${publicEndpoint}/${key}`;
+    } else {
+      const region = process.env.AWS_REGION || 'us-east-1';
+      publicUrl = `https://${bucketName}.s3.${region}.amazonaws.com/${key}`;
+    }
+
+    return { success: true, presignedUrl, publicUrl, key };
+  } catch (error) {
+    console.error('Presigned URL error:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to generate presigned URL' 
+    };
+  }
+}
+
 // Upload file to S3
 export async function uploadFile(file: File, key: string): Promise<UploadResponse & { publicUrl?: string }> {
   try {
